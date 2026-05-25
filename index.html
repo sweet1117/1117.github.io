@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 探照灯 · 动态蒙版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AI 探照灯 · 动态蒙版（移动端适配）</title>
     <style>
         :root {
             --bg: #1a1a2e;
@@ -12,8 +12,6 @@
             --accent2: #c9a96e;
             --text: #e0d5c1;
             --text-secondary: #b0a590;
-            --danger: #c0392b;
-            --success: #27ae60;
             --radius: 14px;
             --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
             --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -38,6 +36,7 @@
             -webkit-user-select: none;
             -webkit-tap-highlight-color: transparent;
             padding: 12px;
+            touch-action: manipulation;
         }
 
         .main-container {
@@ -52,6 +51,7 @@
             background: #000;
             cursor: none;
             transition: var(--transition);
+            touch-action: none;
         }
         @media (max-width: 768px) {
             .main-container {
@@ -86,7 +86,6 @@
             color: #fff;
             pointer-events: none;
             z-index: 10;
-            transition: var(--transition);
             letter-spacing: 0.3px;
         }
         .status-dot {
@@ -94,7 +93,6 @@
             height: 9px;
             border-radius: 50%;
             background: #555;
-            transition: var(--transition);
             flex-shrink: 0;
         }
         .status-dot.active {
@@ -126,7 +124,6 @@
             pointer-events: none;
             z-index: 10;
             letter-spacing: 0.4px;
-            transition: var(--transition);
         }
         .hand-count-badge span {
             font-weight: 700;
@@ -163,6 +160,7 @@
             position: relative;
             overflow: hidden;
             font-family: inherit;
+            touch-action: manipulation;
         }
         .btn:active { transform: scale(0.96); }
         .btn-primary {
@@ -208,7 +206,7 @@
             text-align: center;
             margin-top: 6px;
             letter-spacing: 0.3px;
-            transition: var(--transition);
+            padding: 0 8px;
         }
 
         .slider-group {
@@ -252,7 +250,6 @@
             z-index: 10;
             pointer-events: none;
             opacity: 0.75;
-            transition: var(--transition);
             background: #000;
         }
         .camera-preview video {
@@ -294,13 +291,11 @@
     </div>
 
     <div class="controls" id="controls">
-        <!-- 上传底图 (静态图片) -->
         <label class="btn btn-secondary upload-label" title="上传底图（光圈外的背景图层）">
             <span class="btn-icon">🖼️</span> 上传底图
             <input type="file" id="bgUpload" accept="image/*">
         </label>
 
-        <!-- 上传蒙版 (支持图片、GIF动图、视频) -->
         <label class="btn btn-secondary upload-label" title="上传蒙版（光圈内显示的图层，支持图片/动图/视频）">
             <span class="btn-icon">🎭</span> 上传蒙版(图片/视频/动图)
             <input type="file" id="maskUpload" accept="image/*,video/*">
@@ -312,24 +307,23 @@
 
         <div class="slider-group">
             <span>羽化</span>
-            <input type="range" id="featherSlider" min="8" max="55" value="28" title="光圈边缘羽化程度">
+            <input type="range" id="featherSlider" min="8" max="55" value="28">
             <span id="featherValue">28%</span>
         </div>
 
         <div class="slider-group">
             <span>光圈</span>
-            <input type="range" id="radiusSlider" min="50" max="200" value="110" title="光圈基础大小">
+            <input type="range" id="radiusSlider" min="50" max="200" value="110">
             <span id="radiusValue">110px</span>
         </div>
     </div>
 
     <p class="hint-text" id="hintText">
-        💡 将手放入摄像头视野，移动手部来控制探照灯光圈 | 若无摄像头，移动鼠标亦可体验
+        💡 移动手部控制光圈 | 无摄像头则移动鼠标 | 点击画面可激活视频蒙版
     </p>
 
     <video id="hiddenVideo" style="display:none;" playsinline></video>
 
-    <!-- MediaPipe Hands CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6.1675466023/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
@@ -337,7 +331,6 @@
 
     <script>
         (function() {
-            // ==================== DOM 元素 ====================
             const mainCanvas = document.getElementById('mainCanvas');
             const ctx = mainCanvas.getContext('2d');
             const mainContainer = document.getElementById('mainContainer');
@@ -357,7 +350,6 @@
             const radiusValue = document.getElementById('radiusValue');
             const cameraPreviewDiv = document.getElementById('cameraPreview');
 
-            // ==================== 状态变量 ====================
             let bgImage = null;
             let maskElement = null;
             let maskType = 'image';
@@ -378,11 +370,10 @@
             let offscreenCtx = null;
             let lastHandDetectionTime = 0;
             const HAND_TIMEOUT_MS = 600;
-
             let featherPercent = 28;
             let baseRadius = 110;
 
-            // ==================== 默认图片生成 ====================
+            // ---------- 默认图片 ----------
             function createDefaultBgImage() {
                 const c = document.createElement('canvas');
                 c.width = canvasWidth;
@@ -395,7 +386,6 @@
                 bgGrad.addColorStop(1, '#050d15');
                 cx.fillStyle = bgGrad;
                 cx.fillRect(0, 0, canvasWidth, canvasHeight);
-
                 for (let i = 0; i < 180; i++) {
                     const sx = Math.random() * canvasWidth;
                     const sy = Math.random() * canvasHeight;
@@ -434,7 +424,6 @@
                 grad.addColorStop(1, '#c07828');
                 cx.fillStyle = grad;
                 cx.fillRect(0, 0, canvasWidth, canvasHeight);
-
                 for (let i = 0; i < 300; i++) {
                     const tx = Math.random() * canvasWidth;
                     const ty = Math.random() * canvasHeight;
@@ -473,16 +462,15 @@
 
                 if (maskElement && maskType === 'video') {
                     maskElement.pause();
+                    if (maskElement.parentNode) maskElement.parentNode.removeChild(maskElement);
                     if (maskObjectURL) URL.revokeObjectURL(maskObjectURL);
                 }
                 maskElement = img;
                 maskType = 'image';
                 maskReady = true;
                 maskObjectURL = null;
-                console.log('默认图片已生成');
             }
 
-            // ==================== 通用媒体绘制 ====================
             function drawMediaCover(ctx, media, cw, ch) {
                 if (!media) return;
                 const isVideo = media.tagName === 'VIDEO';
@@ -506,7 +494,7 @@
                 ctx.drawImage(media, dx, dy, dw, dh);
             }
 
-            // ==================== 蒙版上传处理 ====================
+            // ---------- 蒙版上传（修复移动端视频播放） ----------
             async function handleMaskUpload(file) {
                 if (!file) return;
                 if (maskObjectURL) {
@@ -516,7 +504,7 @@
                 if (maskElement && maskType === 'video') {
                     maskElement.pause();
                     maskElement.removeAttribute('src');
-                    maskElement.load();
+                    if (maskElement.parentNode) maskElement.parentNode.removeChild(maskElement);
                 }
                 maskReady = false;
                 const url = URL.createObjectURL(file);
@@ -528,7 +516,7 @@
                         maskElement = img;
                         maskType = 'image';
                         maskReady = true;
-                        console.log('蒙版图片已加载:', file.name);
+                        hintText.textContent = '🖼️ 图片蒙版已加载';
                     };
                     img.onerror = () => {
                         alert('蒙版图片加载失败');
@@ -540,19 +528,24 @@
                     video.muted = true;
                     video.loop = true;
                     video.playsInline = true;
+                    video.autoplay = true;
                     video.setAttribute('playsinline', '');
+                    video.setAttribute('muted', '');
+                    video.style.display = 'none';
+                    document.body.appendChild(video);   // ✅ 关键：添加到 DOM 使移动端可自动播放
                     video.preload = 'auto';
+
                     video.onloadeddata = () => {
                         maskElement = video;
                         maskType = 'video';
                         maskReady = true;
-                        console.log('蒙版视频已加载:', file.name);
-                        video.play().catch(e => {
-                            console.warn('视频自动播放失败，可能需要点击画面:', e);
+                        hintText.textContent = '🎥 视频蒙版已加载（若未动，请轻点画面）';
+                        video.play().catch(() => {
+                            hintText.textContent = '👉 点击画面开始播放视频蒙版';
                         });
                     };
                     video.onerror = () => {
-                        alert('蒙版视频加载失败');
+                        alert('蒙版视频加载失败，请检查格式');
                         maskReady = false;
                     };
                     video.src = url;
@@ -563,7 +556,7 @@
                 }
             }
 
-            // ==================== 底图上传 ====================
+            // ---------- 底图上传 ----------
             function handleBgUpload(file) {
                 return new Promise((resolve, reject) => {
                     if (!file || !file.type.startsWith('image/')) {
@@ -575,7 +568,6 @@
                         const img = new Image();
                         img.onload = () => {
                             bgImage = img;
-                            console.log('底图已更新:', file.name);
                             resolve(img);
                         };
                         img.onerror = () => reject(new Error('底图加载失败'));
@@ -588,29 +580,30 @@
 
             bgUpload.addEventListener('change', (e) => {
                 const file = e.target.files[0];
-                if (file) {
-                    handleBgUpload(file).catch(err => alert('底图上传失败: ' + err.message));
-                }
+                if (file) handleBgUpload(file).catch(err => alert('底图上传失败: ' + err.message));
                 bgUpload.value = '';
             });
 
             maskUpload.addEventListener('change', (e) => {
                 const file = e.target.files[0];
-                if (file) {
-                    handleMaskUpload(file);
-                }
+                if (file) handleMaskUpload(file);
                 maskUpload.value = '';
             });
 
             resetBtn.addEventListener('click', async () => {
                 await loadDefaultImages();
-                hintText.textContent = '✅ 已恢复默认图片 | 💡 移动手部或鼠标来探索光圈效果';
-                setTimeout(() => {
-                    hintText.textContent = '💡 将手放入摄像头视野，移动手部来控制探照灯光圈 | 若无摄像头，移动鼠标亦可体验';
-                }, 2000);
+                hintText.textContent = '✅ 已恢复默认图片 | 移动手部或鼠标来探索';
             });
 
-            // ==================== 羽化与大小调节 ====================
+            // ---------- 点击画面激活视频（移动端兜底） ----------
+            mainContainer.addEventListener('click', () => {
+                if (maskType === 'video' && maskElement && maskElement.paused) {
+                    maskElement.play().catch(() => {});
+                    hintText.textContent = '🎬 视频蒙版已激活';
+                }
+            });
+
+            // ---------- 滑块控制 ----------
             featherSlider.addEventListener('input', () => {
                 featherPercent = parseInt(featherSlider.value);
                 featherValue.textContent = featherPercent + '%';
@@ -620,7 +613,7 @@
                 radiusValue.textContent = baseRadius + 'px';
             });
 
-            // ==================== Canvas 尺寸 ====================
+            // ---------- Canvas 尺寸 ----------
             function updateCanvasSize() {
                 const rect = mainContainer.getBoundingClientRect();
                 mainCanvas.style.width = rect.width + 'px';
@@ -637,7 +630,7 @@
                 }
             }
 
-            // ==================== 鼠标模拟 ====================
+            // ---------- 鼠标/触摸模拟 ----------
             function getMouseCanvasPos(e) {
                 const rect = mainCanvas.getBoundingClientRect();
                 const scaleX = canvasWidth / rect.width;
@@ -662,13 +655,12 @@
             }, { passive: false });
             mainCanvas.addEventListener('touchend', () => { if (mouseMode) { mouseInCanvas = false; mousePos = null; } });
 
-            // ==================== 渲染循环 ====================
+            // ---------- 渲染 ----------
             function render() {
                 const cw = canvasWidth;
                 const ch = canvasHeight;
                 ctx.clearRect(0, 0, cw, ch);
 
-                // 底图
                 if (bgImage && bgImage.complete && bgImage.naturalWidth > 0) {
                     drawMediaCover(ctx, bgImage, cw, ch);
                 } else {
@@ -676,19 +668,17 @@
                     ctx.fillRect(0, 0, cw, ch);
                 }
 
-                // 光圈源：统一使用 baseRadius（由滑块控制）
                 let spotlightSources = [];
                 if (cameraActive && !mouseMode && detectedHands.length > 0) {
                     spotlightSources = detectedHands.map(h => ({
                         cx: h.cx * cw,
                         cy: h.cy * ch,
-                        radius: baseRadius,   // ✅ 修复：手势模式下也使用滑块值
+                        radius: baseRadius,
                     }));
                 } else if (mouseMode && mouseInCanvas && mousePos) {
                     spotlightSources = [{ cx: mousePos.x, cy: mousePos.y, radius: baseRadius }];
                 }
 
-                // 动态蒙版光圈
                 if (spotlightSources.length > 0 && maskReady && maskElement) {
                     if (!offscreenCanvas || offscreenCanvas.width !== cw || offscreenCanvas.height !== ch) {
                         offscreenCanvas = document.createElement('canvas');
@@ -721,27 +711,12 @@
                     }
                 }
 
-                if (spotlightSources.length === 0 && !maskReady) {
-                    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-                    ctx.beginPath();
-                    ctx.arc(cw / 2, ch / 2, 100, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                    ctx.font = '18px "PingFang SC","Microsoft YaHei",sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('移动手部或鼠标来探索', cw / 2, ch / 2 + 40);
-                    ctx.textAlign = 'start';
-                }
-
                 animationId = requestAnimationFrame(render);
             }
 
-            // ==================== MediaPipe Hands ====================
+            // ---------- MediaPipe ----------
             function initMediaPipe() {
-                if (typeof Hands === 'undefined') {
-                    switchToMouseMode('MediaPipe库加载失败');
-                    return;
-                }
+                if (typeof Hands === 'undefined') { switchToMouseMode('MediaPipe库加载失败'); return; }
                 handsInstance = new Hands({
                     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`
                 });
@@ -753,10 +728,7 @@
                 });
                 handsInstance.onResults(onHandResults);
 
-                if (typeof Camera === 'undefined') {
-                    switchToMouseMode('摄像头工具加载失败');
-                    return;
-                }
+                if (typeof Camera === 'undefined') { switchToMouseMode('摄像头工具加载失败'); return; }
                 cameraInstance = new Camera(hiddenVideo, {
                     onFrame: async () => {
                         if (handsInstance && cameraActive) {
@@ -771,12 +743,9 @@
                     cameraActive = true;
                     mouseMode = false;
                     updateStatus('active', 'AI摄像头已就绪');
-                    hintText.textContent = '✅ AI手势追踪已激活 | 将手放入摄像头视野，移动手部控制探照灯';
                     previewVideo.srcObject = hiddenVideo.srcObject;
                     cameraPreviewDiv.style.display = 'block';
-                }).catch((err) => {
-                    switchToMouseMode('摄像头权限未授予或不可用');
-                });
+                }).catch(() => switchToMouseMode('摄像头权限未授予'));
             }
 
             function onHandResults(results) {
@@ -788,31 +757,18 @@
                 lastHandDetectionTime = Date.now();
                 const newDetectedHands = [];
                 for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-                    const landmarks = results.multiHandLandmarks[i];
-                    const wrist = landmarks[0];
-                    const indexBase = landmarks[5];
-                    const middleBase = landmarks[9];
-                    const ringBase = landmarks[13];
-                    const pinkyBase = landmarks[17];
-                    const palmCx = (wrist.x + indexBase.x + middleBase.x + ringBase.x + pinkyBase.x) / 5;
-                    const palmCy = (wrist.y + indexBase.y + middleBase.y + ringBase.y + pinkyBase.y) / 5;
-                    const mirroredCx = 1 - palmCx;
-                    newDetectedHands.push({ cx: mirroredCx, cy: palmCy });
+                    const lm = results.multiHandLandmarks[i];
+                    const cx = (lm[0].x + lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 5;
+                    const cy = (lm[0].y + lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 5;
+                    newDetectedHands.push({ cx: 1 - cx, cy });
                 }
-                // 平滑处理
-                if (smoothedHands.length === 0) {
-                    smoothedHands = newDetectedHands.map(h => ({ ...h }));
-                } else {
-                    const newSmoothed = [];
-                    for (const newHand of newDetectedHands) {
-                        const existing = smoothedHands[0];
-                        const alpha = 0.35;
-                        newSmoothed.push({
-                            cx: existing ? existing.cx * (1 - alpha) + newHand.cx * alpha : newHand.cx,
-                            cy: existing ? existing.cy * (1 - alpha) + newHand.cy * alpha : newHand.cy,
-                        });
-                    }
-                    smoothedHands = newSmoothed;
+                if (smoothedHands.length === 0) smoothedHands = newDetectedHands.map(h => ({...h}));
+                else {
+                    const alpha = 0.35;
+                    smoothedHands = newDetectedHands.map((h, i) => ({
+                        cx: smoothedHands[i] ? smoothedHands[i].cx * (1 - alpha) + h.cx * alpha : h.cx,
+                        cy: smoothedHands[i] ? smoothedHands[i].cy * (1 - alpha) + h.cy * alpha : h.cy,
+                    }));
                 }
                 detectedHands = smoothedHands;
                 updateHandCountUI(detectedHands.length);
@@ -829,10 +785,8 @@
                 detectedHands = [];
                 smoothedHands = [];
                 updateStatus('warning', '鼠标模拟模式');
-                hintText.textContent = '🖱️ ' + reason + ' | 移动鼠标到画面上来控制探照灯光圈';
+                hintText.textContent = '🖱️ ' + reason + ' | 移动鼠标/手指控制光圈';
                 cameraPreviewDiv.style.display = 'none';
-                handBadge.style.opacity = '0.4';
-                handCountEl.textContent = '0';
             }
 
             function updateStatus(state, text) {
@@ -842,10 +796,9 @@
                 statusText.textContent = text;
             }
 
-            // ==================== 初始化 ====================
+            // ---------- 初始化 ----------
             async function init() {
                 updateCanvasSize();
-                updateStatus('warning', '正在初始化...');
                 mainCanvas.width = canvasWidth;
                 mainCanvas.height = canvasHeight;
                 offscreenCanvas = document.createElement('canvas');
@@ -854,17 +807,10 @@
                 offscreenCtx = offscreenCanvas.getContext('2d');
 
                 await loadDefaultImages();
-
                 try { initMediaPipe(); } catch (e) { switchToMouseMode('初始化异常'); }
-
-                setTimeout(() => {
-                    if (!cameraActive && !mouseMode) switchToMouseMode('摄像头启动超时');
-                }, 4000);
-
+                setTimeout(() => { if (!cameraActive && !mouseMode) switchToMouseMode('摄像头启动超时'); }, 4000);
                 render();
                 window.addEventListener('resize', updateCanvasSize);
-                updateHandCountUI(0);
-                console.log('AI探照灯系统初始化完成 (动态蒙版，光圈大小可调)');
             }
 
             function cleanup() {
@@ -878,6 +824,7 @@
                 if (maskElement && maskType === 'video') {
                     maskElement.pause();
                     maskElement.removeAttribute('src');
+                    if (maskElement.parentNode) maskElement.parentNode.removeChild(maskElement);
                 }
             }
             window.addEventListener('beforeunload', cleanup);
@@ -885,21 +832,9 @@
 
             init().catch(err => {
                 console.error('初始化失败:', err);
-                switchToMouseMode('系统初始化失败，使用鼠标模式');
+                switchToMouseMode('系统初始化失败');
                 if (!animationId) render();
             });
-
-            window.__spotlightDebug = {
-                getState: () => ({
-                    cameraActive,
-                    mouseMode,
-                    detectedHandsCount: detectedHands.length,
-                    maskType,
-                    maskReady,
-                    baseRadius,
-                    featherPercent,
-                }),
-            };
         })();
     </script>
 </body>
