@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AI 探照灯 · 动态蒙版（移动端适配）</title>
+    <title>AI 探照灯 · 动态蒙版</title>
     <style>
         :root {
             --bg: #1a1a2e;
@@ -296,8 +296,9 @@
             <input type="file" id="bgUpload" accept="image/*">
         </label>
 
+        <!-- 修改后的按钮文字 -->
         <label class="btn btn-secondary upload-label" title="上传蒙版（光圈内显示的图层，支持图片/动图/视频）">
-            <span class="btn-icon">🎭</span> 上传蒙版(图片/视频/动图)
+            <span class="btn-icon">🎭</span> 上传蒙版(照片或文件（视频）)
             <input type="file" id="maskUpload" accept="image/*,video/*">
         </label>
 
@@ -494,7 +495,7 @@
                 ctx.drawImage(media, dx, dy, dw, dh);
             }
 
-            // ---------- 蒙版上传（修复移动端视频播放） ----------
+            // ---------- 蒙版上传（移动端视频修复） ----------
             async function handleMaskUpload(file) {
                 if (!file) return;
                 if (maskObjectURL) {
@@ -532,7 +533,7 @@
                     video.setAttribute('playsinline', '');
                     video.setAttribute('muted', '');
                     video.style.display = 'none';
-                    document.body.appendChild(video);   // ✅ 关键：添加到 DOM 使移动端可自动播放
+                    document.body.appendChild(video);
                     video.preload = 'auto';
 
                     video.onloadeddata = () => {
@@ -595,7 +596,7 @@
                 hintText.textContent = '✅ 已恢复默认图片 | 移动手部或鼠标来探索';
             });
 
-            // ---------- 点击画面激活视频（移动端兜底） ----------
+            // 点击画面激活视频（移动端兜底）
             mainContainer.addEventListener('click', () => {
                 if (maskType === 'video' && maskElement && maskElement.paused) {
                     maskElement.play().catch(() => {});
